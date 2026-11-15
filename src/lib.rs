@@ -8,8 +8,8 @@
 //! 
 //! There are three form events, [`Submit`], [`Cancel`], and [`Reset`]. These events
 //! are triggered either by activating a [`FormButton`] of the corresponding variant
-//! or manually by using [`EntityCommandsFormExt`] and calling `.submit_form()`,
-//! `.cancel_form()` or `.reset_form()` on an `EntityCommands` for the form.
+//! or manually by using [`actions::FormActions`] and calling `.submit_form()`,
+//! `.cancel_form()` or `.reset_form()` on an `EntityCommands`/`EntityWorldMut` for the form.
 //
 // There's an example at the very bottom of the file.
 
@@ -17,11 +17,13 @@ use bevy::app::Plugin;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Commands, Query};
 use bevy::ecs::{component::Component, entity::Entity, event::EntityEvent,
-    system::{EntityCommand, EntityCommands}, template::FromTemplate, 
-    world::{EntityWorldMut, World}
+    template::FromTemplate, 
+    world::World
 };
 use bevy::platform::collections::HashMap;
 use bevy::ui_widgets::{Activate, Button};
+
+pub mod actions;
 
 #[derive(Debug)]
 pub struct FormPlugin;
@@ -102,82 +104,6 @@ impl Reset {
     }
 }
 
-#[derive(Debug)]
-pub struct SubmitFormCommand;
-
-impl EntityCommand for SubmitFormCommand {
-    type Out = ();
-
-    fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Submit { entity: id, fields });
-        });
-    }
-}
-
-#[derive(Debug)]
-pub struct CancelFormCommand;
-
-impl EntityCommand for CancelFormCommand {
-    type Out = ();
-
-    fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Cancel { entity: id, fields });
-        });
-    }
-}
-
-#[derive(Debug)]
-pub struct ResetFormCommand;
-
-impl EntityCommand for ResetFormCommand {
-    type Out = ();
-
-    fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Reset { entity: id, fields });
-        });
-    }
-}
-
-/// Form commands extension trait for EntityCommands.
-/// 
-/// This extension trait provides three methods that will trigger events of the
-/// same name on a form entity. Use these commands instead of triggering the
-/// events directly so that you don't have to manually create the `fields` field
-/// for the events.
-pub trait EntityCommandsFormExt {
-    fn submit_form(&mut self);
-
-    fn cancel_form(&mut self);
-
-    fn reset_form(&mut self);
-}
-
-impl<'a> EntityCommandsFormExt for EntityCommands<'a> {
-    fn submit_form(&mut self) {
-        self.queue(SubmitFormCommand);
-    }
-
-    fn cancel_form(&mut self) {
-        self.queue(CancelFormCommand);
-    }
-
-    fn reset_form(&mut self) {
-        self.queue(ResetFormCommand);
-    }
-}
-
 // #[DesignQuestion] Should this be three separate components `SubmitButton`, `CancelButton`, `ResetButton`? 
 /// Button that performs a form action
 #[derive(Debug, Clone, Copy, Component, FromTemplate)]
@@ -199,6 +125,8 @@ fn on_activate(
     q_form_button: Query<&FormButton>,
     mut commands: Commands,
 ) {
+    use actions::FormActions as _;
+    
     let Ok(&button) = q_form_button.get(event.entity) else { return; };
 
     match button {
