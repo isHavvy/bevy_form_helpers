@@ -14,23 +14,22 @@
 // There's an example at the very bottom of the file.
 
 use bevy::app::Plugin;
-use bevy::ecs::observer::On;
-use bevy::ecs::system::{Commands, Query};
-use bevy::ecs::{component::Component, entity::Entity, event::EntityEvent,
+use bevy::ecs::{component::Component, entity::Entity,
     template::FromTemplate, 
     world::World
 };
 use bevy::platform::collections::HashMap;
-use bevy::ui_widgets::{Activate, Button};
 
-pub mod actions;
+pub mod action;
+pub mod button;
+pub mod event;
 
 #[derive(Debug)]
 pub struct FormPlugin;
 
 impl Plugin for FormPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.add_observer(on_activate);
+        app.add_observer(button::on_form_button_activate);
     }
 }
 
@@ -46,12 +45,6 @@ pub struct FieldOf {
     #[relationship] pub form: Entity,
     pub name: String,
 }
-// #[DesignQuestion]
-// Should this be a String no matter what, or should it be made generic or some other type?
-// Pro of it being a String is that we can use the Into<String> machinery.
-// Cons is that, well, Strings are way too much memory for what we are doing here.
-// But there also should never be e.g. 1000s of forms.
-// A generic type also lets people make their own enums for fields.
 
 #[derive(Debug, Component)]
 #[relationship_target(relationship = FieldOf)]
@@ -68,77 +61,9 @@ impl FormFields {
     }
 }
 
-#[derive(Debug, EntityEvent)]
-pub struct Submit {
-    pub entity: Entity,
-    pub fields: HashMap<String, Entity>
-}
-
-impl Submit {
-    pub fn get_field(&self, field: impl Into<String>) -> Option<Entity> {
-        self.fields.get(&field.into()).copied()
-    }
-}
-
-#[derive(Debug, EntityEvent)]
-pub struct Cancel {
-    pub entity: Entity,
-    pub fields: HashMap<String, Entity>
-}
-
-impl Cancel {
-    pub fn get_field(&self, field: impl Into<String>) -> Option<Entity> {
-        self.fields.get(&field.into()).copied()
-    }
-}
-
-#[derive(Debug, EntityEvent)]
-pub struct Reset {
-    pub entity: Entity,
-    pub fields: HashMap<String, Entity>
-}
-
-impl Reset {
-    pub fn get_field(&self, field: impl Into<String>) -> Option<Entity> {
-        self.fields.get(&field.into()).copied()
-    }
-}
-
-// #[DesignQuestion] Should this be three separate components `SubmitButton`, `CancelButton`, `ResetButton`? 
-/// Button that performs a form action
-#[derive(Debug, Clone, Copy, Component, FromTemplate)]
-#[require(Button)]
-pub enum FormButton {
-    #[default]
-    Submit(Entity),
-    Cancel(Entity),
-    Reset(Entity),
-}
-
-// #[DesignQuestion] This adds a global observer that has to run on every activate.
-//                   Should this instead use the lifecycle hook machinery to add/remove an observer when
-//                   the FormButton component is added/removed?
-//                   It'd be nice if there was a performant way to add a global observer but only on
-//                   entitie with specific components.
-fn on_activate(
-    event: On<Activate>,
-    q_form_button: Query<&FormButton>,
-    mut commands: Commands,
-) {
-    use actions::FormActions as _;
-    
-    let Ok(&button) = q_form_button.get(event.entity) else { return; };
-
-    match button {
-        FormButton::Submit(form_entity) => { commands.entity(form_entity).submit_form(); },
-        FormButton::Cancel(form_entity) => { commands.entity(form_entity).cancel_form(); },
-        FormButton::Reset(form_entity) => { commands.entity(form_entity).reset_form(); },
-    }
-}
-
 mod example {
     use bevy::prelude::*;
-    use super::{Submit, FieldOf, FormButton};
+    use super::{event::Submit, FieldOf, button::FormButton};
 
     #[allow(unused, reason = "Example function, to show how the utilities of this module are used.")]
     fn example_form() -> impl Scene {

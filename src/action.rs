@@ -1,6 +1,7 @@
 use bevy::{ecs::{entity::Entity, system::{EntityCommand, EntityCommands}, world::EntityWorldMut}, platform::collections::HashMap};
 
-use crate::{Cancel, FormFields, Reset, Submit};
+use crate::FormFields;
+use crate::event::{Cancel, Reset, Submit};
 
 #[derive(Debug)]
 pub struct SubmitForm;
