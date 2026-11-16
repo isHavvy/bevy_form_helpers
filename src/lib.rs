@@ -23,6 +23,7 @@ use bevy::platform::collections::HashMap;
 pub mod action;
 pub mod button;
 pub mod event;
+pub mod value;
 
 #[derive(Debug)]
 pub struct FormPlugin;
@@ -50,16 +51,7 @@ pub struct FieldOf {
 #[relationship_target(relationship = FieldOf)]
 pub struct FormFields(Vec<Entity>);
 
-impl FormFields {
-    fn to_hash_map(&self, world: &World) -> HashMap<String, Entity> {
-        self.0.iter().copied().map(|field_entity| {
-            let field_of = world.entity(field_entity).get::<FieldOf>().unwrap();
-
-            (field_of.name.clone(), field_entity)
-        })
-        .collect()
-    }
-}
+pub type FieldEntities = HashMap<String, Entity>;
 
 mod example {
     use bevy::prelude::*;

@@ -1,10 +1,14 @@
 use bevy::prelude::*;
 use bevy::platform::collections::HashMap;
 
+use crate::FieldEntities;
+use crate::value::FieldValues;
+
 #[derive(Debug, EntityEvent)]
 pub struct Submit {
     pub entity: Entity,
-    pub fields: HashMap<String, Entity>
+    pub fields: FieldEntities,
+    pub values: FieldValues,
 }
 
 impl Submit {

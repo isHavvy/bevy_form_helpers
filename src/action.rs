@@ -1,6 +1,8 @@
-use bevy::{ecs::{entity::Entity, system::{EntityCommand, EntityCommands}, world::EntityWorldMut}, platform::collections::HashMap};
+use bevy::prelude::*;
+use bevy::platform::collections::HashMap;
 
-use crate::FormFields;
+use crate::value::{FieldValue, FieldValues, GetFieldValueAny as _};
+use crate::{FieldEntities, FieldOf, FormFields};
 use crate::event::{Cancel, Reset, Submit};
 
 #[derive(Debug)]
@@ -10,12 +12,9 @@ impl EntityCommand for SubmitForm {
     type Out = ();
 
     fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Submit { entity: id, fields });
-        });
+        let (form_entity, world) = (entity.id(), entity.world());
+        let (fields, values) = collect_entities_and_values(world, form_entity);
+        entity.trigger(|form_entity| Submit { entity: form_entity, fields, values });
     }
 }
 
@@ -26,12 +25,9 @@ impl EntityCommand for CancelForm {
     type Out = ();
 
     fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Cancel { entity: id, fields });
-        });
+        let (form_entity, world) = (entity.id(), entity.world());
+        let fields = collect_entities(world, form_entity);
+        entity.trigger(|form_entity| Cancel { entity: form_entity, fields,  });
     }
 }
 
@@ -42,12 +38,9 @@ impl EntityCommand for ResetForm {
     type Out = ();
 
     fn apply(self, mut entity: EntityWorldMut) -> Self::Out {
-        let fields = entity.get::<FormFields>().unwrap();
-        let fields: HashMap<String, Entity> = fields.to_hash_map(entity.world());
-        let id = entity.id();
-        entity.world_scope(|world| {
-            world.trigger(Reset { entity: id, fields });
-        });
+        let (form_entity, world) = (entity.id(), entity.world());
+        let fields = collect_entities(world, form_entity);
+        entity.trigger(|form_entity| Reset { entity: form_entity, fields,  });
     }
 }
 
@@ -94,4 +87,47 @@ impl<'w> FormActions for EntityWorldMut<'w> {
         self.reborrow_scope(|entity| ResetForm.apply(entity));
         self
     }
+}
+
+fn collect_entities(world: &World, form_entity: Entity) -> FieldEntities {
+    let Some(form_fields) = world.get::<FormFields>(form_entity) else {
+        return HashMap::new();
+    };
+
+    let mut entities = HashMap::with_capacity(form_fields.len());
+    for field_entity in form_fields.iter() {
+        if let Some(field_of) = world.get::<FieldOf>(field_entity) {
+            entities.insert(field_of.name.clone(), field_entity);
+        }
+    }
+    entities
+}
+
+fn collect_entities_and_values(
+    world: &World,
+    form_entity: Entity,
+) -> (FieldEntities, FieldValues) {
+    let Some(form_fields) = world.get::<FormFields>(form_entity) else {
+        return (HashMap::new(), FieldValues::default());
+    };
+
+    let mut entities = HashMap::with_capacity(form_fields.len());
+    let mut values = HashMap::new();
+
+    for field_entity in form_fields.iter() {
+        let entity_ref = world.entity(field_entity);
+        let Some(field_of) = entity_ref.get::<FieldOf>() else {
+            continue;
+        };
+
+        entities.insert(field_of.name.clone(), field_entity);
+
+        if let Some(getter) = entity_ref.get::<FieldValue>()
+            && let Some(val) = getter.get_any(entity_ref)
+        {
+            values.insert(field_of.name.clone(), val);
+        }
+    }
+
+    (entities, FieldValues(values))
 }
