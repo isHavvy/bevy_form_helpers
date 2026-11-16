@@ -14,9 +14,10 @@
 // There's an example at the very bottom of the file.
 
 use bevy::app::Plugin;
-use bevy::ecs::{component::Component, entity::Entity,
-    template::FromTemplate, 
-    world::World
+use bevy::ecs::{
+    component::Component,
+    entity::Entity,
+    template::FromTemplate
 };
 use bevy::platform::collections::HashMap;
 
