@@ -1,8 +1,8 @@
 //! A minimal form: a text input, a checkbox, and a submit button.
 //!
-//! Run with: cargo run --example form
+//! Run with: cargo run --example ui_form
 //! 
-//! 
+//! Not that running works at the moment.
 
 use bevy::prelude::*;
 use bevy::text::EditableText;

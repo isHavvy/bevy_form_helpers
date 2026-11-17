@@ -1,6 +1,6 @@
 //! Yep! It's a prelude.
 //! 
-//! This prelude also pulls in the FormActions trait adding methods to Commands and WorldEntityMut.
+//! This prelude also pulls in the FormActions trait adding methods to EntityCommands and WorldEntityMut.
 
 pub use crate::action::FormActions;
 #[cfg(feature = "bevy_ui_widgets")] pub use crate::button::FormButton;

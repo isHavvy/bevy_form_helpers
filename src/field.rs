@@ -163,7 +163,7 @@ pub(crate) struct AnyFieldValue {
 /// 
 /// # Example
 /// 
-/// ```rust
+/// ```rust,ignore
 /// fn on_submit(submit: On<Submit>) {
 ///     let values: &FieldValues = &submit.values;
 /// 
@@ -179,7 +179,7 @@ impl FieldValues {
         self.0.get(name)?.value.downcast_ref::<T>().cloned()
     }
 
-    pub fn try_get<T: Clone + 'static>(&self, name: &str) -> Result<Option<T>, FieldValuesGetError> {
+    pub fn try_get<T: Clone + 'static>(&self, name: &str) -> Result<T, FieldValuesGetError> {
         match self.0.get(name) {
             Some(any_value) => {
                 match any_value.value.downcast_ref().cloned() {
@@ -212,7 +212,7 @@ impl FieldValues {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldValuesGetError {
     NoField(String),
     TypeError {

@@ -1,14 +1,14 @@
 //! Form Utilities
 //! 
-//! A *form* is an entity with the [`FormFields`] component.
+//! A *form* is an entity with the [`field::FormFields`] component.
 //! 
-//! Place a [`FieldOf`] relationship on each entity that holds form data
+//! Place a [`field::FieldOf`] relationship on each entity that holds form data
 //! relating to the form entity. This will make the field accessible
 //! in the form event handlers.
 //! 
-//! There are three form events, [`Submit`], [`Cancel`], and [`Reset`]. These events
-//! are triggered either by activating a [`FormButton`] of the corresponding variant
-//! or manually by using [`actions::FormActions`] and calling `.submit_form()`,
+//! There are three form events: [`event::Submit`], [`event::Cancel`], and [`event::Reset`].
+//! These events are triggered either by activating a [`button::FormButton`] of the corresponding
+//! variant or manually by using [`action::FormActions`] and calling `.submit_form()`,
 //! `.cancel_form()` or `.reset_form()` on an `EntityCommands`/`EntityWorldMut` for the form.
 //! 
 //! Note that a form doesn't have to be a UI form. A puzzle that gets checked
