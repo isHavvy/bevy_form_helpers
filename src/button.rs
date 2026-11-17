@@ -12,6 +12,14 @@ pub enum FormButton {
     Reset(Entity),
 }
 
+impl FormButton {
+    pub fn form(&self) -> Entity {
+        match self {
+            Self::Submit(e) | Self::Cancel(e) | Self::Reset(e) => *e
+        }
+    }
+}
+
 pub(crate) fn on_form_button_activate(
     event: On<Activate>,
     q_form_button: Query<&FormButton>,

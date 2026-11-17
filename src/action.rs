@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy::platform::collections::HashMap;
 
-use crate::value::{FieldValue, FieldValues, GetFieldValueAny as _};
-use crate::{FieldEntities, FieldOf, FormFields};
+use crate::field::{FieldReader, FieldValues, ReadFieldAny as _};
+use crate::field::{FieldEntities, FieldOf, FormFields};
 use crate::event::{Cancel, Reset, Submit};
 
 #[derive(Debug)]
@@ -122,8 +122,8 @@ fn collect_entities_and_values(
 
         entities.insert(field_of.name.clone(), field_entity);
 
-        if let Some(getter) = entity_ref.get::<FieldValue>()
-            && let Some(val) = getter.get_any(entity_ref)
+        if let Some(getter) = entity_ref.get::<FieldReader>()
+            && let Some(val) = getter.read_value_any(entity_ref)
         {
             values.insert(field_of.name.clone(), val);
         }

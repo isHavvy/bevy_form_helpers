@@ -1,4 +1,4 @@
-//! UI Form Utilities
+//! Form Utilities
 //! 
 //! A *form* is an entity with the [`FormFields`] component.
 //! 
@@ -10,96 +10,37 @@
 //! are triggered either by activating a [`FormButton`] of the corresponding variant
 //! or manually by using [`actions::FormActions`] and calling `.submit_form()`,
 //! `.cancel_form()` or `.reset_form()` on an `EntityCommands`/`EntityWorldMut` for the form.
-//
-// There's an example at the very bottom of the file.
+//! 
+//! Note that a form doesn't have to be a UI form. A puzzle that gets checked
+//! when the user performs an in-game action such as talking to an NPC could use this library.
+//! 
+//! # Features
+//! 
+//! By default, all features are enabled.
+//!
+//! - `bevy_scene`: enables [`field::field_reader`] for use in `bsn!` scenes.
+//!   Without it, you can insert [`field::FieldReader`] components directly.
+//! - `bevy_text`: built-in readers for `EditableText`.
+//! - `bevy_ui`: built-in bevy_ui readers.
+//! - `bevy_ui_widgets`: [`button::FormButton`] and ui_widgets readers.
+//!   Pulls in `bevy_ui`.
 
 use bevy::app::Plugin;
-use bevy::ecs::{
-    component::Component,
-    entity::Entity,
-    template::FromTemplate
-};
-use bevy::platform::collections::HashMap;
 
 pub mod action;
-pub mod button;
+#[cfg(feature = "bevy_ui_widgets")] pub mod button;
 pub mod event;
-pub mod value;
+pub mod field;
+pub mod reader;
+
+pub mod prelude;
 
 #[derive(Debug)]
 pub struct FormPlugin;
 
 impl Plugin for FormPlugin {
     fn build(&self, app: &mut bevy::app::App) {
+        #[cfg(feature = "bevy_ui_widgets")]
         app.add_observer(button::on_form_button_activate);
-    }
-}
-
-/// A field of a form.
-/// 
-/// # Warning
-/// 
-/// Field names must be unique per form. If not, only one field (at random)
-/// will be accessible in the form's event handlers.
-#[derive(Debug, Clone, Component, FromTemplate)]
-#[relationship(relationship_target = FormFields)]
-pub struct FieldOf {
-    #[relationship] pub form: Entity,
-    pub name: String,
-}
-
-#[derive(Debug, Component)]
-#[relationship_target(relationship = FieldOf)]
-pub struct FormFields(Vec<Entity>);
-
-pub type FieldEntities = HashMap<String, Entity>;
-
-mod example {
-    use bevy::prelude::*;
-    use super::{event::Submit, FieldOf, button::FormButton};
-
-    #[allow(unused, reason = "Example function, to show how the utilities of this module are used.")]
-    fn example_form() -> impl Scene {
-        use bevy::prelude::*;
-        use bevy::ui_widgets::{Button, *};
-        use bevy::text::EditableText;
-
-        #[derive(Component, Clone, FromTemplate, Deref)]
-        struct FormRef(Entity);
-
-        fn on_submit(
-            submit: On<Submit>,
-            editable_text_query: Query<&EditableText>,
-            checkbox_query: Query<&Checkbox>,
-        ) {
-            let username = editable_text_query.get(submit.get_field("Name").unwrap()).unwrap();
-            let is_playing = checkbox_query.get(submit.get_field("Playing?").unwrap()).unwrap();
-
-            /* do stuff with username and is_playing here */
-        }
-
-        bsn! {
-            #ExampleForm
-            Node {
-                flex_direction: FlexDirection::Column,
-            }
-            on(on_submit)
-
-            Children [
-                // Omitting non-field entities for brevity
-                FieldOf { form: #ExampleForm, name: { "Name".to_string() } }
-                EditableText
-
-                --
-
-                FieldOf { form: #ExampleForm, name: { "Playing?".to_string() }}
-                Checkbox
-
-                --
-
-                FormButton::Submit(#ExampleForm)
-                Text::new("Submit")
-            ]
-        }
     }
 }
