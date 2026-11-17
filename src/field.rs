@@ -8,7 +8,7 @@ use bevy::platform::collections::HashMap;
 /// 
 /// # Warning
 /// 
-/// Field names must be unique per form. If not, only one field (at random)
+/// Field names must be unique per form. If not, only one field (unspecified which one)
 /// will be accessible in the form's event handlers.
 #[derive(Debug, Clone, Component, FromTemplate)]
 #[relationship(relationship_target = FormFields)]
@@ -237,3 +237,101 @@ impl std::fmt::Display for FieldValuesGetError {
 }
 
 impl std::error::Error for FieldValuesGetError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn single_value<T: Any + Send + Sync>(name: &'static str, value: T) -> FieldValues {
+        let mut map = HashMap::new();
+        map.insert(Cow::Borrowed(name), AnyFieldValue::new(value));
+        FieldValues(map)
+    }
+
+    // ---- FieldValues::get ----
+
+    #[test]
+    fn get_returns_typed_value() {
+        let values = single_value("score", 42u32);
+        assert_eq!(values.get::<u32>("score"), Some(42));
+    }
+
+    #[test]
+    fn get_wrong_type_is_none() {
+        let values = single_value("score", 42u32);
+        assert_eq!(values.get::<i32>("score"), None);
+        assert_eq!(values.get::<String>("score"), None);
+    }
+
+    #[test]
+    fn get_missing_field_is_none() {
+        let values = single_value("score", 42u32);
+        assert_eq!(values.get::<u32>("nope"), None);
+    }
+
+    #[test]
+    fn get_or_falls_back() {
+        let values = single_value("score", 42u32);
+        assert_eq!(values.get_or("score", 0u32), 42);
+        assert_eq!(values.get_or("missing", 7u32), 7);
+        assert_eq!(values.get_or("score", 7i32), 7); // wrong type also falls back
+    }
+
+    // ---- try_get ----
+
+    #[test]
+    fn try_get_ok() {
+        let values = single_value("score", 42u32);
+        assert_eq!(values.try_get::<u32>("score").unwrap(), 42);
+    }
+
+    #[test]
+    fn try_get_no_field() {
+        let values = single_value("score", 42u32);
+        match values.try_get::<u32>("missing") {
+            Err(FieldValuesGetError::NoField(name)) => assert_eq!(name, "missing"),
+            other => panic!("expected NoField, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn try_get_type_error() {
+        let values = single_value("score", 42u32);
+        let err = values.try_get::<String>("score").unwrap_err();
+        assert!(matches!(err, FieldValuesGetError::TypeError { .. }));
+
+        #[cfg(debug_assertions)]
+        if let FieldValuesGetError::TypeError { actual } = err {
+            assert_eq!(actual, std::any::type_name::<u32>());
+        }
+    }
+
+    // ---- map surface ----
+
+    #[test]
+    fn contains_len_names() {
+        let mut map = HashMap::new();
+        map.insert(Cow::Borrowed("a"), AnyFieldValue::new(1u32));
+        map.insert(Cow::Borrowed("b"), AnyFieldValue::new(String::from("x")));
+        let values = FieldValues(map);
+
+        assert!(values.contains_field("a"));
+        assert!(!values.contains_field("c"));
+        assert_eq!(values.len(), 2);
+        assert!(!values.is_empty());
+        assert!(FieldValues::default().is_empty());
+
+        let mut names: Vec<_> = values.names().collect();
+        names.sort_unstable();
+        assert_eq!(names, ["a", "b"]);
+    }
+
+    #[test]
+    fn owned_cow_keys_work() {
+        let mut map = HashMap::new();
+        map.insert(Cow::Owned(format!("field_{}", 1)), AnyFieldValue::new(true));
+        let values = FieldValues(map);
+        // lookup by &str must work regardless of Borrowed/Owned key
+        assert_eq!(values.get::<bool>("field_1"), Some(true));
+    }
+}

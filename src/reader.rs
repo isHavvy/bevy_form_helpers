@@ -176,3 +176,124 @@ where
         self(entity)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Component, Clone, Debug, PartialEq)]
+    struct Score(u32);
+
+    #[derive(Component)]
+    struct Selected;
+
+    // ---- generic readers (always available) ----
+
+    #[test]
+    fn read_component_clones() {
+        let mut world = World::new();
+        let e = world.spawn(Score(9)).id();
+        let reader = ReadComponent::<Score>::new();
+        assert_eq!(reader.read_value(world.entity(e)), Some(Score(9)));
+
+        let empty = world.spawn_empty().id();
+        assert_eq!(reader.read_value(world.entity(empty)), None);
+    }
+
+    #[test]
+    fn has_component_reports_presence() {
+        let mut world = World::new();
+        let with = world.spawn(Selected).id();
+        let without = world.spawn_empty().id();
+        let reader = HasComponent::<Selected>::new();
+        assert_eq!(reader.read_value(world.entity(with)), Some(true));
+        assert_eq!(reader.read_value(world.entity(without)), Some(false));
+    }
+
+    #[test]
+    fn closure_reader() {
+        let mut world = World::new();
+        let e = world.spawn(Score(5)).id();
+        let reader = |entity: EntityRef| entity.get::<Score>().map(|s| s.0 * 2);
+        assert_eq!(reader.read_value(world.entity(e)), Some(10));
+    }
+
+    #[test]
+    fn defaults_match_new() {
+        // Default and new should be interchangeable for the phantom readers.
+        let mut world = World::new();
+        let e = world.spawn(Score(1)).id();
+        assert_eq!(
+            ReadComponent::<Score>::default().read_value(world.entity(e)),
+            ReadComponent::<Score>::new().read_value(world.entity(e)),
+        );
+    }
+
+    #[cfg(feature = "bevy_ui")]
+    #[test]
+    fn is_checked() {
+        let mut world = World::new();
+        let checked = world.spawn(bevy::ui::Checked).id();
+        let unchecked = world.spawn_empty().id();
+        assert_eq!(IsChecked.read_value(world.entity(checked)), Some(true));
+        assert_eq!(IsChecked.read_value(world.entity(unchecked)), Some(false));
+    }
+
+    #[cfg(feature = "bevy_ui_widgets")]
+    #[test]
+    fn slider_value() {
+        let mut world = World::new();
+        let e = world.spawn(bevy::ui_widgets::SliderValue(0.75)).id();
+        assert_eq!(ReadSliderValue.read_value(world.entity(e)), Some(0.75));
+
+        let empty = world.spawn_empty().id();
+        assert_eq!(ReadSliderValue.read_value(world.entity(empty)), None);
+    }
+
+    #[cfg(feature = "bevy_text")]
+    mod editable_text_tests {
+        use super::*;
+        use bevy::text::EditableText;
+
+        #[test]
+        fn read_editable_text() {
+            let mut world = World::new();
+            let e = world.spawn(EditableText::new("hello")).id();
+            assert_eq!(
+                ReadEditableText.read_value(world.entity(e)),
+                Some("hello".to_string()),
+            );
+
+            let empty = world.spawn_empty().id();
+            assert_eq!(ReadEditableText.read_value(world.entity(empty)), None);
+        }
+
+        #[test]
+        fn parse_text_valid() {
+            let mut world = World::new();
+            let e = world.spawn(EditableText::new("42")).id();
+            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), Some(42));
+        }
+
+        #[test]
+        fn parse_text_invalid_is_none() {
+            let mut world = World::new();
+            let e = world.spawn(EditableText::new("abc")).id();
+            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), None);
+        }
+
+        #[test]
+        fn parse_text_missing_component_is_none() {
+            let mut world = World::new();
+            let e = world.spawn_empty().id();
+            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), None);
+        }
+
+        #[test]
+        fn parse_text_float() {
+            let mut world = World::new();
+            let e = world.spawn(EditableText::new("0.5")).id();
+            assert_eq!(ParseText::<f32>::default().read_value(world.entity(e)), Some(0.5));
+        }
+    }
+}
