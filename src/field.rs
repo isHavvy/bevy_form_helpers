@@ -4,6 +4,9 @@ use std::borrow::Cow;
 use bevy::prelude::*;
 use bevy::platform::collections::HashMap;
 
+#[path = "readers.rs"]
+pub mod readers;
+
 /// A field of a form.
 /// 
 /// # Warning
@@ -49,36 +52,33 @@ pub type FieldEntities = HashMap<Cow<'static, str>, Entity>;
 pub trait ReadField: Clone + Send + Sync + 'static {
     type Output: Clone + Send + Sync + 'static;
 
-    fn read_value(&self, entity: EntityRef) -> Option<Self::Output>;
+    fn read_value(&self, entity: Entity, world: &World) -> Option<Self::Output>;
 }
 
 /// Type erased version of ReadField.
 /// 
 /// All types that implement ReadField automatically implement this trait.
+/// 
+/// This is stored in the [`FieldReader`] component since it does not have
+/// any generic type parameters. 
 pub(crate) trait ReadFieldAny: Send + Sync + 'static {
-    fn read_value_any(&self, entity: EntityRef) -> Option<AnyFieldValue>;
+    fn read_value_any(&self, entity: Entity, world: &World) -> Option<AnyFieldValue>;
 }
 
-impl<G: ReadField> ReadFieldAny for G {
-    fn read_value_any(&self, entity: EntityRef) -> Option<AnyFieldValue> {
-        ReadField::read_value(self, entity).map(AnyFieldValue::new)
-    }
-}
-
-impl AnyFieldValue {
-    pub(crate) fn new<T: Any + Send + Sync>(value: T) -> Self {
-        Self {
-            value: Box::new(value),
-
-            #[cfg(debug_assertions)]
-            type_name: std::any::type_name::<T>(),
-        }
+impl<R: ReadField> ReadFieldAny for R {
+    fn read_value_any(&self, entity: Entity, world: &World) -> Option<AnyFieldValue> {
+        ReadField::read_value(self, entity, world).map(AnyFieldValue::new)
     }
 }
 
 /// Component describing how to read the value of a field.
 /// 
 /// When used in scenes, use the [`field_reader`] function.
+/// 
+/// You can pass in one of the provided readers in [`crate::reader`]
+/// or a function `fn(EntityRef) -> Option<YourValueType>`.
+/// 
+/// `FieldReader::new(|e| e.get::<Name>().clone())`
 #[derive(Component)]
 pub struct FieldReader(Box<dyn ReadFieldAny>);
 
@@ -95,8 +95,8 @@ impl FieldReader {
 }
 
 impl ReadFieldAny for FieldReader {
-    fn read_value_any(&self, entity: EntityRef) -> Option<AnyFieldValue> {
-        self.0.read_value_any(entity)
+    fn read_value_any(&self, entity: Entity, world: &World) -> Option<AnyFieldValue> {
+        self.0.read_value_any(entity, world)
     }
 }
 
@@ -154,6 +154,17 @@ pub(crate) struct AnyFieldValue {
 
     #[cfg(debug_assertions)]
     type_name: &'static str
+}
+
+impl AnyFieldValue {
+    pub(crate) fn new<T: Any + Send + Sync>(value: T) -> Self {
+        Self {
+            value: Box::new(value),
+
+            #[cfg(debug_assertions)]
+            type_name: std::any::type_name::<T>(),
+        }
+    }
 }
 
 /// A map of field names to their values.

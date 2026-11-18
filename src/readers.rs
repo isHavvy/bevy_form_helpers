@@ -1,10 +1,15 @@
-//! Built-in field value readers
+//! Built-in [`ReadField`](crate::field::ReadField) implementations for common Bevy widgets.
+//!
+//! All readers in this module are gated behind their respective features.
+//! See the [crate-level docs](crate) for the feature list.
+
+// This module's parent module is field.rs
 
 use std::marker::PhantomData;
 
 use bevy::prelude::*;
 
-use crate::field::ReadField;
+use super::ReadField;
 
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Clone, Copy, Default)]
@@ -15,8 +20,8 @@ impl ReadField for IsChecked {
     type Output = bool;
 
     #[inline]
-    fn read_value(&self, entity: EntityRef) -> Option<Self::Output> {
-        HasComponent::<bevy::ui::Checked>::new().read_value(entity)
+    fn read_value(&self, entity: Entity, world: &World) -> Option<Self::Output> {
+        HasComponent::<bevy::ui::Checked>::new().read_value(entity, world)
     }
 }
 
@@ -29,17 +34,17 @@ impl ReadField for ReadSliderValue {
     type Output = f32;
 
     #[inline]
-    fn read_value(&self, entity: EntityRef) -> Option<f32> {
-        entity.get::<bevy::ui_widgets::SliderValue>().map(|v| v.0)
+    fn read_value(&self, entity: Entity, world: &World) -> Option<f32> {
+        world.get::<bevy::ui_widgets::SliderValue>(entity).map(|value| value.0)
     }
 }
 
 #[cfg(feature = "bevy_text")]
-pub use editable_text::{ParseText, ReadEditableText};
+pub use editable_text::{ParseEditableText, ReadEditableText};
 
 #[cfg(feature = "bevy_text")]
 mod editable_text {
-    use bevy::ecs::world::EntityRef;
+    use bevy::prelude::*;
     use bevy::text::EditableText;
 
     use crate::field::ReadField;
@@ -51,41 +56,56 @@ mod editable_text {
         type Output = String;
 
         #[inline]
-        fn read_value(&self, entity: EntityRef) -> Option<String> {
-            entity
-                .get::<EditableText>()
-                .map(|text| text.value().to_string())
+        fn read_value(&self, entity: Entity, world: &World) -> Option<String> {
+            world.get::<EditableText>(entity).map(|text| text.value().to_string())
         }
     }
 
     /// Reads the value of a text widget and stores the value if it parses to a specific type.
     #[derive(Debug)]
-    pub struct ParseText<T: std::str::FromStr + Clone + Send + Sync + 'static> {
+    pub struct ParseEditableText<T: std::str::FromStr + Clone + Send + Sync + 'static> {
+        pub trim: bool,
         _marker: std::marker::PhantomData<fn() -> T>,
     }
 
-    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Clone for ParseText<T> {
+    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> ParseEditableText<T> {
+        pub fn new() -> Self {
+            Default::default()
+        }
+
+        pub fn raw() -> Self {
+            Self {
+                trim: false,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Clone for ParseEditableText<T> {
         fn clone(&self) -> Self {
             *self
         }
     }
 
-    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Copy for ParseText<T> {}
+    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Copy for ParseEditableText<T> {}
 
-    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Default for ParseText<T> {
+    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> Default for ParseEditableText<T> {
         fn default() -> Self {
             Self {
+                trim: true,
                 _marker: std::marker::PhantomData,
             }
         }
     }
 
-    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> ReadField for ParseText<T> {
+    impl<T: std::str::FromStr + Clone + Send + Sync + 'static> ReadField for ParseEditableText<T> {
         type Output = T;
 
         #[inline]
-        fn read_value(&self, entity: EntityRef) -> Option<T> {
-            ReadEditableText.read_value(entity).map(|text| text.parse::<T>().ok()).flatten()
+        fn read_value(&self, entity: Entity, world: &World) -> Option<T> {
+            let text = ReadEditableText.read_value(entity, world)?;
+            let text = if self.trim { text.trim() } else { text.as_str() };
+            text.parse::<T>().ok()
         }
     }
 }
@@ -122,8 +142,8 @@ impl<C: Component + Clone + Send + Sync + 'static> ReadField for ReadComponent<C
     type Output = C;
 
     #[inline]
-    fn read_value(&self, entity: EntityRef) -> Option<C> {
-        entity.get::<C>().cloned()
+    fn read_value(&self, entity: Entity, world: &World) -> Option<C> {
+        world.get::<C>(entity).cloned()
     }
 }
 
@@ -158,8 +178,8 @@ impl<C: Component> HasComponent<C> {
 impl<C: Component> ReadField for HasComponent<C> {
     type Output = bool;
 
-    fn read_value(&self, entity: EntityRef) -> Option<bool> {
-        Some(entity.get::<C>().is_some())
+    fn read_value(&self, entity: Entity, world: &World) -> Option<bool> {
+        Some(world.entity(entity).contains::<C>())
     }
 }
 
@@ -167,13 +187,13 @@ impl<C: Component> ReadField for HasComponent<C> {
 impl<F, T> ReadField for F
 where
     F: Clone,
-    F: Fn(EntityRef) -> Option<T> + Send + Sync + 'static,
+    F: Fn(Entity, &World) -> Option<T> + Send + Sync + 'static,
     T: Clone + Send + Sync + 'static,
 {
     type Output = T;
 
-    fn read_value(&self, entity: EntityRef) -> Option<T> {
-        self(entity)
+    fn read_value(&self, entity: Entity, world: &World) -> Option<T> {
+        self(entity, world)
     }
 }
 
@@ -194,10 +214,10 @@ mod tests {
         let mut world = World::new();
         let e = world.spawn(Score(9)).id();
         let reader = ReadComponent::<Score>::new();
-        assert_eq!(reader.read_value(world.entity(e)), Some(Score(9)));
+        assert_eq!(reader.read_value(e, &world), Some(Score(9)));
 
         let empty = world.spawn_empty().id();
-        assert_eq!(reader.read_value(world.entity(empty)), None);
+        assert_eq!(reader.read_value(empty, &world), None);
     }
 
     #[test]
@@ -206,16 +226,16 @@ mod tests {
         let with = world.spawn(Selected).id();
         let without = world.spawn_empty().id();
         let reader = HasComponent::<Selected>::new();
-        assert_eq!(reader.read_value(world.entity(with)), Some(true));
-        assert_eq!(reader.read_value(world.entity(without)), Some(false));
+        assert_eq!(reader.read_value(with, &world), Some(true));
+        assert_eq!(reader.read_value(without, &world), Some(false));
     }
 
     #[test]
     fn closure_reader() {
         let mut world = World::new();
         let e = world.spawn(Score(5)).id();
-        let reader = |entity: EntityRef| entity.get::<Score>().map(|s| s.0 * 2);
-        assert_eq!(reader.read_value(world.entity(e)), Some(10));
+        let reader = |entity: Entity, world: &World| world.get::<Score>(entity).map(|s| s.0 * 2);
+        assert_eq!(reader.read_value(e, &world), Some(10));
     }
 
     #[test]
@@ -224,8 +244,8 @@ mod tests {
         let mut world = World::new();
         let e = world.spawn(Score(1)).id();
         assert_eq!(
-            ReadComponent::<Score>::default().read_value(world.entity(e)),
-            ReadComponent::<Score>::new().read_value(world.entity(e)),
+            ReadComponent::<Score>::default().read_value(e, &world),
+            ReadComponent::<Score>::new().read_value(e, &world),
         );
     }
 
@@ -235,8 +255,8 @@ mod tests {
         let mut world = World::new();
         let checked = world.spawn(bevy::ui::Checked).id();
         let unchecked = world.spawn_empty().id();
-        assert_eq!(IsChecked.read_value(world.entity(checked)), Some(true));
-        assert_eq!(IsChecked.read_value(world.entity(unchecked)), Some(false));
+        assert_eq!(IsChecked.read_value(checked, &world), Some(true));
+        assert_eq!(IsChecked.read_value(unchecked, &world), Some(false));
     }
 
     #[cfg(feature = "bevy_ui_widgets")]
@@ -244,10 +264,10 @@ mod tests {
     fn slider_value() {
         let mut world = World::new();
         let e = world.spawn(bevy::ui_widgets::SliderValue(0.75)).id();
-        assert_eq!(ReadSliderValue.read_value(world.entity(e)), Some(0.75));
+        assert_eq!(ReadSliderValue.read_value(e, &world), Some(0.75));
 
         let empty = world.spawn_empty().id();
-        assert_eq!(ReadSliderValue.read_value(world.entity(empty)), None);
+        assert_eq!(ReadSliderValue.read_value(empty, &world), None);
     }
 
     #[cfg(feature = "bevy_text")]
@@ -260,40 +280,58 @@ mod tests {
             let mut world = World::new();
             let e = world.spawn(EditableText::new("hello")).id();
             assert_eq!(
-                ReadEditableText.read_value(world.entity(e)),
+                ReadEditableText.read_value(e, &world),
                 Some("hello".to_string()),
             );
 
             let empty = world.spawn_empty().id();
-            assert_eq!(ReadEditableText.read_value(world.entity(empty)), None);
+            assert_eq!(ReadEditableText.read_value(empty, &world), None);
         }
 
         #[test]
         fn parse_text_valid() {
             let mut world = World::new();
             let e = world.spawn(EditableText::new("42")).id();
-            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), Some(42));
+            assert_eq!(ParseEditableText::<i32>::default().read_value(e, &world), Some(42));
         }
 
         #[test]
         fn parse_text_invalid_is_none() {
             let mut world = World::new();
             let e = world.spawn(EditableText::new("abc")).id();
-            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), None);
+            assert_eq!(ParseEditableText::<i32>::default().read_value(e, &world), None);
         }
 
         #[test]
         fn parse_text_missing_component_is_none() {
             let mut world = World::new();
             let e = world.spawn_empty().id();
-            assert_eq!(ParseText::<i32>::default().read_value(world.entity(e)), None);
+            assert_eq!(ParseEditableText::<i32>::default().read_value(e, &world), None);
         }
 
         #[test]
         fn parse_text_float() {
             let mut world = World::new();
             let e = world.spawn(EditableText::new("0.5")).id();
-            assert_eq!(ParseText::<f32>::default().read_value(world.entity(e)), Some(0.5));
+            assert_eq!(ParseEditableText::<f32>::default().read_value(e, &world), Some(0.5));
+        }
+
+        #[test]
+        fn parse_text_trims_by_default() {
+            let mut world = World::new();
+            let e = world.spawn(EditableText::new("  42  \n")).id();
+            assert_eq!(ParseEditableText::<i32>::default().read_value(e, &world), Some(42));
+        }
+
+        #[test]
+        fn parse_text_raw_preserves_whitespace() {
+            let mut world = World::new();
+            // " 42 " won't parse as i32 untrimmed
+            let e = world.spawn(EditableText::new(" 42 ")).id();
+            assert_eq!(ParseEditableText::<i32>::raw().read_value(e, &world), None);
+            // But a type that accepts spaces would work (contrived example)
+            let e2 = world.spawn(EditableText::new("hello")).id();
+            assert_eq!(ParseEditableText::<String>::raw().read_value(e2, &world), Some("hello".to_string()));
         }
     }
 }

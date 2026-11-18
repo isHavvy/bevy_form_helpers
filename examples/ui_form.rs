@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{Checkbox, TextInput, checkbox_self_update};
 use bevy_form_helpers::prelude::*;
-use bevy_form_helpers::reader::{ReadEditableText, IsChecked};
+use bevy_form_helpers::field::readers::{ReadEditableText, IsChecked};
 
 fn main() {
     App::new()

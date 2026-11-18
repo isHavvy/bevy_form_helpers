@@ -101,7 +101,7 @@ fn insert_field(
 ) {
     if let Some(previous) = entities.insert(name.clone(), field_entity) {
         #[cfg(debug_assertions)]
-        if previous != field_entity {;
+        if previous != field_entity {
             bevy::log::warn!(
                 "Form {form_entity:?} has multiple fields named {name:?}: \
                 {previous:?} is being shadowed by {field_entity:?}. \
@@ -145,7 +145,7 @@ fn collect_entities_and_values(
         insert_field(&mut entities, field_of.name.clone(), field_entity, form_entity);
 
         if let Some(getter) = entity_ref.get::<FieldReader>()
-            && let Some(val) = getter.read_value_any(entity_ref)
+            && let Some(val) = getter.read_value_any(field_entity, world)
         {
             values.insert(field_of.name.clone(), val);
         }
@@ -157,7 +157,7 @@ fn collect_entities_and_values(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reader::ReadComponent;
+    use crate::field::readers::ReadComponent;
 
     #[derive(Component, Clone, Debug, PartialEq)]
     struct Score(u32);

@@ -31,7 +31,6 @@ pub mod action;
 #[cfg(feature = "bevy_ui_widgets")] pub mod button;
 pub mod event;
 pub mod field;
-pub mod reader;
 
 pub mod prelude;
 
