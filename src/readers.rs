@@ -1,4 +1,4 @@
-//! Built-in [`ReadField`](crate::field::ReadField) implementations for common Bevy widgets.
+//! Built-in [`ReadField`] implementations for common Bevy widgets.
 //!
 //! All readers in this module are gated behind their respective features.
 //! See the [crate-level docs](crate) for the feature list.
@@ -183,7 +183,54 @@ impl<C: Component> ReadField for HasComponent<C> {
     }
 }
 
-/// Functions implement this trait for one-off functions.
+#[cfg(feature = "bevy_ui_widgets")]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReadListBoxSelection;
+
+#[cfg(feature = "bevy_ui_widgets")]
+impl ReadField for ReadListBoxSelection {
+    type Output = Entity;
+
+    fn read_value(&self, entity: Entity, world: &World) -> Option<Entity> {
+        let children = world.get::<Children>(entity)?;
+        children.iter()
+            .find(|&child| world.get::<bevy::ui::Selected>(child).is_some())
+    }
+}
+
+#[cfg(feature = "bevy_ui_widgets")]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReadListBoxSelections;
+
+#[cfg(feature = "bevy_ui_widgets")]
+impl ReadField for ReadListBoxSelections {
+    type Output = Vec<Entity>;
+
+    fn read_value(&self, entity: Entity, world: &World) -> Option<Vec<Entity>> {
+        let children = world.get::<Children>(entity)?;
+        let selected: Vec<Entity> = children.iter()
+            .filter(|&child| world.get::<bevy::ui::Selected>(child).is_some())
+            .collect();
+        Some(selected)
+    }
+}
+
+#[cfg(feature = "bevy_ui_widgets")]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReadRadioGroupSelection;
+
+#[cfg(feature = "bevy_ui_widgets")]
+impl ReadField for ReadRadioGroupSelection {
+    type Output = Entity;
+
+    fn read_value(&self, entity: Entity, world: &World) -> Option<Entity> {
+        let children = world.get::<Children>(entity)?;
+        children.iter()
+            .find(|&child| world.get::<bevy::ui::Checked>(child).is_some())
+    }
+}
+
+/// Functions taking an Entity and &World are field readers.
 impl<F, T> ReadField for F
 where
     F: Clone,
@@ -332,6 +379,90 @@ mod tests {
             // But a type that accepts spaces would work (contrived example)
             let e2 = world.spawn(EditableText::new("hello")).id();
             assert_eq!(ParseEditableText::<String>::raw().read_value(e2, &world), Some("hello".to_string()));
+        }
+    }
+
+    #[cfg(feature = "bevy_ui_widgets")]
+    mod listbox_tests {
+        use super::*;
+        use bevy::ui::Selected;
+
+        #[test]
+        fn selects_child_with_selected_component() {
+            let mut world = World::new();
+            let child_a = world.spawn_empty().id();
+            let child_b = world.spawn(Selected).id();
+            let listbox = world.spawn_empty().id();
+            world.entity_mut(listbox).add_children(&[child_a, child_b]);
+
+            assert_eq!(
+                ReadListBoxSelection.read_value(listbox, &world),
+                Some(child_b),
+            );
+        }
+
+        #[test]
+        fn none_when_no_selected_child() {
+            let mut world = World::new();
+            let child = world.spawn_empty().id();
+            let listbox = world.spawn_empty().id();
+            world.entity_mut(listbox).add_children(&[child]);
+
+            assert_eq!(ReadListBoxSelection.read_value(listbox, &world), None);
+        }
+
+        #[test]
+        fn none_when_no_children() {
+            let mut world = World::new();
+            let listbox = world.spawn_empty().id();
+            assert_eq!(ReadListBoxSelection.read_value(listbox, &world), None);
+        }
+
+        #[test]
+        fn returns_first_selected_when_multiple() {
+            let mut world = World::new();
+            let child_a = world.spawn(Selected).id();
+            let child_b = world.spawn(Selected).id();
+            let listbox = world.spawn_empty().id();
+            world.entity_mut(listbox).add_children(&[child_a, child_b]);
+
+            // Single-select semantics: first match wins
+            assert_eq!(
+                ReadListBoxSelection.read_value(listbox, &world),
+                Some(child_a),
+            );
+        }
+    }
+
+    #[cfg(feature = "bevy_ui_widgets")]
+    mod radio_tests {
+        use super::*;
+        use bevy::ui::Checked;
+
+        #[test]
+        fn selects_checked_child() {
+            let mut world = World::new();
+            let a = world.spawn_empty().id();
+            let b = world.spawn(Checked).id();
+            let group = world.spawn_empty().id();
+            world.entity_mut(group).add_children(&[a, b]);
+            assert_eq!(ReadRadioGroupSelection.read_value(group, &world), Some(b));
+        }
+
+        #[test]
+        fn none_when_nothing_checked() {
+            let mut world = World::new();
+            let a = world.spawn_empty().id();
+            let group = world.spawn_empty().id();
+            world.entity_mut(group).add_children(&[a]);
+            assert_eq!(ReadRadioGroupSelection.read_value(group, &world), None);
+        }
+
+        #[test]
+        fn none_without_children() {
+            let mut world = World::new();
+            let group = world.spawn_empty().id();
+            assert_eq!(ReadRadioGroupSelection.read_value(group, &world), None);
         }
     }
 }

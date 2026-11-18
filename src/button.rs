@@ -3,6 +3,10 @@ use bevy::ui_widgets::{Activate, Button};
 
 use crate::action::FormActions as _;
 
+/// A [`Button`] that when [activated](`Activate`), automatically performs a form action.
+/// 
+/// The entity that each variant holds must point to the form entity that you want the
+/// action to be performed on.
 #[derive(Debug, Clone, Copy, Component, FromTemplate)]
 #[require(Button)]
 pub enum FormButton {

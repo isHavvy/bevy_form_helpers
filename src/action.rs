@@ -1,12 +1,18 @@
 use std::borrow::Cow;
 
 use bevy::prelude::*;
+use bevy::log::warn;
 use bevy::platform::collections::HashMap;
 
-use crate::field::{FieldReader, FieldValues, ReadFieldAny as _};
-use crate::field::{FieldEntities, FieldOf, FormFields};
+use crate::field::{FieldReader, ReadFieldAny as _};
+use crate::field::{FieldEntities, FieldValues, FieldOf, FormFields};
 use crate::event::{Cancel, Reset, Submit};
 
+/// [`EntityCommand`] for submitting a form.
+/// 
+/// [`FormActions`] provides a submit method that inserts this command.
+/// 
+/// This command generates a [`Submit`] event, creating the [`FieldEntities`] and [`FieldValues`]
 #[derive(Debug)]
 pub struct SubmitForm;
 
@@ -20,6 +26,9 @@ impl EntityCommand for SubmitForm {
     }
 }
 
+/// [`EntityCommand`] for canceling a form.
+/// 
+/// [`FormActions`] provides a cancel method that inserts this command.
 #[derive(Debug)]
 pub struct CancelForm;
 
@@ -33,6 +42,9 @@ impl EntityCommand for CancelForm {
     }
 }
 
+/// [`EntityCommand`] for resetting a form.
+/// 
+/// [`FormActions`] provides a reset method that inserts this command.
 #[derive(Debug)]
 pub struct ResetForm;
 
@@ -102,7 +114,7 @@ fn insert_field(
     if let Some(previous) = entities.insert(name.clone(), field_entity) {
         #[cfg(debug_assertions)]
         if previous != field_entity {
-            bevy::log::warn!(
+            warn!(
                 "Form {form_entity:?} has multiple fields named {name:?}: \
                 {previous:?} is being shadowed by {field_entity:?}. \
                 Only {field_entity:?} will be accessible in form event handlers."

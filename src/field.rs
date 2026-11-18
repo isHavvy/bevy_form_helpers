@@ -20,6 +20,7 @@ pub struct FieldOf {
     pub name: Cow<'static, str>,
 }
 
+/// List of fields that have this entity as its form.
 #[derive(Debug, Component)]
 #[relationship_target(relationship = FieldOf)]
 pub struct FormFields(Vec<Entity>);
@@ -49,6 +50,7 @@ impl<'a> IntoIterator for &'a FormFields {
 
 pub type FieldEntities = HashMap<Cow<'static, str>, Entity>;
 
+/// A type that can read an owned value from an [`Entity`] + [`World`].
 pub trait ReadField: Clone + Send + Sync + 'static {
     type Output: Clone + Send + Sync + 'static;
 
@@ -75,8 +77,9 @@ impl<R: ReadField> ReadFieldAny for R {
 /// 
 /// When used in scenes, use the [`field_reader`] function.
 /// 
-/// You can pass in one of the provided readers in [`crate::reader`]
-/// or a function `fn(EntityRef) -> Option<YourValueType>`.
+/// You can pass in one of the provided readers from the [`readers`] module
+/// or a function `fn(Entity, &World) -> Option<YourDataType>` or make a type
+/// that implements [`ReadField`].
 /// 
 /// `FieldReader::new(|e| e.get::<Name>().clone())`
 #[derive(Component)]
@@ -169,8 +172,11 @@ impl AnyFieldValue {
 
 /// A map of field names to their values.
 /// 
+/// Note that only fields that have a [`FieldReader`] component will provide values.
+/// 
 /// You will usually not need to deal with this type directly.
-/// Instead, you can call `Submit::value` which corresponds to this types `get` method.
+/// Instead, you can call [`Submit::value`](`crate::event::Submit::value`) which corresponds
+/// to this type's [`get`](Self::get) method.
 /// 
 /// # Example
 /// 
@@ -202,8 +208,14 @@ impl FieldValues {
         }
     }
 
+    /// Get the value of the field. If it doesn't exist, return the passed in value instead.
     pub fn get_or<T: Clone + 'static>(&self, name: &str, default: T) -> T {
         self.get(name).unwrap_or(default)
+    }
+
+    /// Get the value of the field. If it doesn't exist, return the default value for the type instead.
+    pub fn get_or_default<T: Clone + Default + 'static>(&self, name: &str) -> T {
+        self.get(name).unwrap_or_default()
     }
 
     pub fn contains_field(&self, name: &str) -> bool {
@@ -218,6 +230,7 @@ impl FieldValues {
         self.0.is_empty()
     }
 
+    /// Provides an iterator of the field names that have values.
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.0.keys().map(|k| k.as_ref())
     }
