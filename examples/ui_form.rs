@@ -7,8 +7,8 @@
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{Checkbox, TextInput, checkbox_self_update};
-use bevy_form_helpers::prelude::*;
-use bevy_form_helpers::field::readers::{ReadEditableText, IsChecked};
+use bevy_form::prelude::*;
+use bevy_form::field::readers::{ReadEditableText, IsChecked};
 
 fn main() {
     App::new()
@@ -74,7 +74,7 @@ fn form() -> impl Scene {
             BorderColor::from(Color::WHITE)
             BackgroundColor(Color::srgb(0.15, 0.15, 0.15))
             Children [
-                Text::new("Submit")
+                Text::new("Add Person")
                 TextFont { font_size: FontSize::Px(20.) }
             ]
         ]

@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use bevy::prelude::*;
-use bevy::log::warn;
 use bevy::platform::collections::HashMap;
 
 use crate::field::{FieldReader, ReadFieldAny as _};
@@ -112,9 +111,9 @@ fn insert_field(
     form_entity: Entity,
 ) {
     if let Some(previous) = entities.insert(name.clone(), field_entity) {
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, feature = "bevy_log"))]
         if previous != field_entity {
-            warn!(
+            bevy::log::warn!(
                 "Form {form_entity:?} has multiple fields named {name:?}: \
                 {previous:?} is being shadowed by {field_entity:?}. \
                 Only {field_entity:?} will be accessible in form event handlers."
